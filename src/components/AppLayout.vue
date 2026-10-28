@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   House, Package, ShoppingCart, TrendingUp, TrendingDown, ChartColumn, DatabaseBackup, UsersRound,
-  LogOut, Menu, X, HardDrive, Cloud, RotateCw, CircleAlert, ShieldCheck,
+  LogOut, Menu, X, HardDrive, RotateCw, CircleAlert, ShieldCheck,
 } from 'lucide-vue-next'
 import AppLogo from './AppLogo.vue'
 import AvisoInactividad from './AvisoInactividad.vue'
@@ -121,18 +121,13 @@ const { enAviso, segundosRestantes, seguirConectado } = useInactividad(() => sal
         </ul>
       </nav>
 
-      <div class="m-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+      <!-- Solo en `npm run dev:demo`: avisa que los datos no van a la base de datos. -->
+      <div v-if="tienda.modo === 'local'" class="m-4 rounded-2xl border border-white/10 bg-white/5 p-4">
         <div class="mb-3 flex size-9 items-center justify-center rounded-xl bg-white/10">
-          <component :is="tienda.modo === 'local' ? HardDrive : Cloud" class="size-5 text-blue-100" />
+          <HardDrive class="size-5 text-blue-100" />
         </div>
-        <template v-if="tienda.modo === 'local'">
-          <p class="font-semibold">Modo demostración</p>
-          <p class="mt-1 text-sm text-blue-300">La información se guarda en este navegador.</p>
-        </template>
-        <template v-else>
-          <p class="font-semibold">Conectado a la nube</p>
-          <p class="mt-1 text-sm text-blue-300">Datos protegidos en Supabase (PostgreSQL).</p>
-        </template>
+        <p class="font-semibold">Modo demostración</p>
+        <p class="mt-1 text-sm text-blue-300">La información se guarda en este navegador.</p>
       </div>
     </aside>
 
