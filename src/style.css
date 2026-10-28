@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-navy-950: #0f1840;
+  --color-navy-900: #172259;
+  --color-navy-800: #1f2d6e;
+  --color-navy-700: #2b3b85;
+
+  --animate-lectura: lectura 1.4s ease-in-out infinite;
+  @keyframes lectura {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+  }
+  button {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-lg {
+    @apply px-5 py-3 text-base;
+  }
+  .btn-primary {
+    @apply bg-blue-600 text-white shadow-md shadow-blue-600/20 hover:bg-blue-700;
+  }
+  .btn-outline {
+    @apply border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50;
+  }
+  .btn-danger {
+    @apply bg-rose-600 text-white hover:bg-rose-700;
+  }
+  .btn-ghost {
+    @apply text-slate-500 hover:bg-slate-100 hover:text-slate-800;
+  }
+  .btn-icon {
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-800 transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:outline-none disabled:opacity-60;
+  }
+  .input[aria-invalid="true"] {
+    @apply border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-500/10;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-semibold text-slate-700;
+  }
+  .ayuda {
+    @apply mt-1.5 text-xs text-slate-500;
+  }
+  .error-campo {
+    @apply mt-1.5 text-xs font-medium text-rose-600;
+  }
+  .tabla {
+    @apply w-full text-left text-sm;
+  }
+  .tabla thead th {
+    @apply bg-slate-50 px-5 py-3 text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase;
+  }
+  .tabla tbody td {
+    @apply border-t border-slate-100 px-5 py-3.5 align-middle;
+  }
+  .tabla tbody tr {
+    @apply transition-colors hover:bg-slate-50/70;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap;
+  }
+  .badge::before {
+    content: "";
+    @apply size-1.5 rounded-full bg-current;
+  }
+  .codigo {
+    @apply inline-block rounded-md bg-slate-100 px-2 py-1 font-mono text-xs text-slate-600;
+  }
+}
+
+@media print {
+  body {
+    @apply bg-white;
+  }
+  .card {
+    @apply shadow-none;
+  }
+}
