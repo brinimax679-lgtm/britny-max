@@ -1,9 +1,10 @@
 // Lee y valida las variables de entorno de Supabase (archivo .env).
-// Si no hay variables, la app funciona en modo demo; si están incompletas
-// o son incorrectas, se muestra un aviso en lugar de guardar datos en el
-// navegador por error.
+// El modo demo (datos en el navegador) solo existe con `npm run dev:demo`;
+// en cualquier otro caso, si faltan las variables o son incorrectas, se
+// muestra un aviso en lugar de guardar datos en el navegador por error.
 
 const entorno = import.meta.env ?? {}
+export const MODO_DEMO = entorno.MODE === 'demo'
 const leer = (nombre) => (entorno[nombre] ?? '').toString().trim()
 
 function rolDeClave(clave) {
@@ -15,8 +16,10 @@ function rolDeClave(clave) {
   }
 }
 
-export function validarConfiguracion({ url, clave, dominio }) {
-  if (!url && !clave) return ''
+export function validarConfiguracion({ url, clave, dominio }, { permitirDemo = true } = {}) {
+  if (!url && !clave) {
+    return permitirDemo ? '' : 'Faltan VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY: la aplicación no está conectada a la base de datos.'
+  }
   if (!url) return 'Falta VITE_SUPABASE_URL en el archivo .env'
   if (!clave) return 'Falta VITE_SUPABASE_ANON_KEY en el archivo .env'
 
@@ -49,5 +52,5 @@ export const configuracion = {
   dominio: leer('VITE_AUTH_DOMAIN') || 'britnymax.app',
 }
 
-export const errorConfiguracion = validarConfiguracion(configuracion)
+export const errorConfiguracion = validarConfiguracion(configuracion, { permitirDemo: MODO_DEMO })
 export const usarSupabase = Boolean(configuracion.url && configuracion.clave) && !errorConfiguracion

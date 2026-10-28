@@ -5,8 +5,9 @@ import { validarConfiguracion } from '../src/services/configuracion.js'
 const jwt = (rol) => `x.${Buffer.from(JSON.stringify({ role: rol })).toString('base64url')}.y`
 const url = 'https://abcd1234.supabase.co'
 
-test('sin variables se usa el modo demo', () => {
+test('sin variables: modo demo solo si se permite, si no es un error', () => {
   assert.equal(validarConfiguracion({ url: '', clave: '' }), '')
+  assert.match(validarConfiguracion({ url: '', clave: '' }, { permitirDemo: false }), /Faltan VITE_SUPABASE_URL/)
 })
 
 test('configuración válida con clave anon o publishable', () => {
