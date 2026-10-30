@@ -1,0 +1,7 @@
+brinimax679@gmail.com	BritnyMax.123456.
+
+Usuario	Contraseña	Nivel
+admin	TuClaveNueva2026	1 · Administrador
+supervisor	Supervisor2026	2 · Supervisor
+cajero	Cajero2026	3 · Cajero
+consulta	Consulta2026	4 · Consulta
