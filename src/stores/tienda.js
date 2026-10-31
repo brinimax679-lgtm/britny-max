@@ -43,7 +43,10 @@ function normalizar(d) {
 }
 
 /** Defensa en el cliente: el nivel del usuario debe permitir la acción (la base de datos también lo verifica). */
-const exigir = (permiso) => exigirPermiso(useAuthStore().rol, permiso)
+const exigir = (permiso) => {
+  const auth = useAuthStore()
+  exigirPermiso(auth.rol, permiso, auth.permisos)
+}
 
 function exigirCondicion(condicion, mensaje) {
   if (!condicion) throw new Error(mensaje)

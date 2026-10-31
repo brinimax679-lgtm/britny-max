@@ -96,7 +96,8 @@ router.beforeEach(async (to) => {
   }
   if (to.name === 'login' && auth.usuario) return { name: 'inicio' }
 
-  // 3. Nivel de seguridad de la pantalla.
+  // 3. Nivel de seguridad de la pantalla, con los permisos vigentes que asignó el administrador.
+  await auth.refrescarPermisos()
   if (to.meta.permiso && !auth.puede(to.meta.permiso)) {
     useUiStore().error(`Tu nivel de acceso (${auth.nombreRol}) no permite abrir «${to.meta.titulo}»`)
     return { name: 'inicio', replace: true }

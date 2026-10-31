@@ -5,7 +5,7 @@
 import * as ops from './operaciones.js'
 import { crearBaseDemo, baseVacia, crearUsuariosDemo, crearUsuarioLocal, USUARIOS_DEMO } from './seed.js'
 import { uid, hashContrasena, nuevaSal } from '../lib/seguridad.js'
-import { exigirPermiso, puede, rolValido } from '../lib/permisos.js'
+import { agruparPermisos, exigirPermiso, permisosPorDefecto, puede, rolValido } from '../lib/permisos.js'
 
 const CLAVE_DB = 'britnymax:db:v1'
 // La sesión vive solo en sessionStorage: se borra al cerrar el navegador.
@@ -59,9 +59,18 @@ function base() {
     db = crearBaseDemo()
     escribir(db)
   }
-  if (migrarUsuarios(db)) escribir(db)
+  let cambio = migrarUsuarios(db)
+  // Bases anteriores a los permisos editables: se cargan los iniciales.
+  if (!Array.isArray(db.permisos)) {
+    db.permisos = permisosPorDefecto()
+    cambio = true
+  }
+  if (cambio) escribir(db)
   return db
 }
+
+/** Matriz de permisos guardada en el navegador, como la tabla permisos_rol. */
+const permisosDe = (db) => agruparPermisos(db.permisos)
 
 /** Ejecuta la operación sobre una copia y solo guarda si termina sin errores. */
 function transaccion(fn) {
@@ -88,9 +97,10 @@ function usuarioActual(db = base()) {
 
 /** Equivalente a las políticas de la base de datos: sin sesión válida o sin permiso, no se opera. */
 function exigir(permiso) {
-  const u = usuarioActual()
+  const db = base()
+  const u = usuarioActual(db)
   if (!u) throw new Error('Tu sesión terminó. Inicia sesión de nuevo')
-  exigirPermiso(u.rol, permiso)
+  exigirPermiso(u.rol, permiso, permisosDe(db))
   return u
 }
 
@@ -163,7 +173,7 @@ export default {
     if (!u) throw new Error('Tu sesión terminó. Inicia sesión de nuevo')
     const datos = structuredClone(Object.fromEntries(COLECCIONES.map((c) => [c, db[c] ?? []])))
     // Igual que las políticas de la base de datos: sin permiso, las finanzas llegan vacías.
-    if (!puede(u.rol, 'finanzas.ver')) {
+    if (!puede(u.rol, 'finanzas.ver', permisosDe(db))) {
       datos.ingresos = []
       datos.egresos = []
     }
@@ -282,8 +292,24 @@ export default {
 
   async restablecer(conDatosDeEjemplo) {
     exigir('respaldo.restaurar')
-    const usuarios = base().usuarios
-    escribir(conDatosDeEjemplo ? crearBaseDemo(usuarios) : { ...baseVacia(), usuarios })
+    const { usuarios, permisos } = base()
+    escribir({ ...(conDatosDeEjemplo ? crearBaseDemo(usuarios) : baseVacia()), usuarios, permisos })
+  },
+
+  // ── Permisos por nivel ──────────────────────────────────────────────────
+
+  async obtenerPermisos() {
+    const db = base()
+    if (!usuarioActual(db)) throw new Error('Tu sesión terminó. Inicia sesión de nuevo')
+    return structuredClone(db.permisos)
+  },
+
+  /** Recibe la lista ya validada por el store (normalizarPermisos). */
+  async guardarPermisos(lista) {
+    exigir('usuarios.gestionar')
+    transaccion((db) => {
+      db.permisos = structuredClone(lista)
+    })
   },
 
   // ── Usuarios (solo administrador) ───────────────────────────────────────

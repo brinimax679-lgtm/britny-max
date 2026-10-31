@@ -233,6 +233,17 @@ export default {
     if (!data?.length) throw new Error('No se pudo eliminar: el registro no existe o no se puede modificar')
   },
 
+  // ── Permisos por nivel (tabla permisos_rol) ───────────────────────────
+
+  async obtenerPermisos() {
+    return revisar(await sb.from('permisos_rol').select('rol, permiso'))
+  },
+
+  /** Solo el administrador; guardar_permisos lo verifica y reemplaza la matriz completa. */
+  async guardarPermisos(lista) {
+    revisar(await sb.rpc('guardar_permisos', { p_permisos: lista }))
+  },
+
   // ── Usuarios (solo administrador; las funciones SQL lo verifican) ─────
 
   async listarUsuarios() {

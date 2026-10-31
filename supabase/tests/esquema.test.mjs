@@ -314,7 +314,8 @@ test('ajustar_inventario registra las diferencias del conteo físico', async () 
 test('ingresos y egresos: fecha, concepto, monto y tipo', async () => {
   const insertar = (tabla, fila) =>
     admin((tx) => tx.query(`insert into ${tabla} (fecha, concepto, monto, tipo) values ($1, $2, $3, $4)`, [fila.fecha, fila.concepto, fila.monto, fila.tipo]))
-  const hoy = new Date().toISOString().slice(0, 10)
+  // «Hoy» en Bogotá, como lo calcula la base de datos (en UTC ya puede ser mañana después de las 7 p. m.).
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
   const base = { fecha: '2026-01-15', concepto: 'Factura de energía', monto: 86500, tipo: 'servicios_publicos' }
   await insertar('egresos', base)
   await rechaza(insertar('egresos', { ...base, concepto: 'ab' }), /egresos_concepto_longitud/)
@@ -439,4 +440,34 @@ test('nivel 1 (administrador): gestiona usuarios con protecciones', async () => 
 test('las funciones de nivel no se pueden llamar desde la API', async () => {
   await rechaza(como(null, (tx) => tx.query(`select privado.tiene_rol('administrador')`), { rol: 'anon' }), /permission denied/)
   await rechaza(como(null, (tx) => tx.query('select * from listar_usuarios()'), { rol: 'anon' }), /permission denied/)
+})
+
+test('el administrador pone y quita permisos, y la base de datos los respeta', async () => {
+  const leer = () => admin((tx) => filas(tx, 'select rol, permiso from permisos_rol order by rol, permiso'))
+  const original = await leer()
+  const guardar = (lista, fn = admin) => fn((tx) => tx.query('select guardar_permisos($1)', [JSON.stringify(lista)]))
+  const id = await productoConStock('Producto con permisos', 6, 2000)
+
+  // Al cajero se le da «finanzas.ver» y se le quita «ventas.registrar»; al supervisor, «inventario.editar».
+  const cambiada = [
+    ...original.filter((p) => !(p.rol === 'cajero' && p.permiso === 'ventas.registrar') && !(p.rol === 'supervisor' && p.permiso === 'inventario.editar')),
+    { rol: 'cajero', permiso: 'finanzas.ver' },
+  ]
+  await guardar(cambiada)
+  assert.ok((await comoCajero((tx) => filas(tx, 'select id from ingresos'))).length > 0, 'el cajero ya ve los ingresos')
+  await rechaza(comoCajero((tx) => tx.query('select registrar_venta(null, $1)', [JSON.stringify([{ producto_id: id, cantidad: 1 }])])), /nivel de acceso \(Cajero\)/)
+  const cat = await crearCategoria('Cat sin permiso')
+  await rechaza(comoSupervisor((tx) => tx.query('select crear_producto($1)', [{ nombre: 'No debe', categoria_id: cat, precio_venta: 100 }])), /nivel de acceso \(Supervisor\)/)
+  await rechaza(comoSupervisor((tx) => tx.query(`insert into categorias (nombre) values ('Sin permiso')`)), /row-level security/)
+  assert.equal((await comoConsulta((tx) => filas(tx, 'select permiso from permisos_rol'))).length > 0, true, 'todos leen la matriz')
+
+  // Solo el administrador cambia la matriz, sin permisos inventados ni «usuarios.gestionar».
+  await rechaza(guardar(original, comoSupervisor), /nivel de acceso \(Supervisor\)/)
+  await rechaza(comoCajero((tx) => tx.query(`insert into permisos_rol values ('cajero', 'finanzas.editar')`)), /row-level security/)
+  await rechaza(guardar([{ rol: 'cajero', permiso: 'usuarios.gestionar' }]), /permisos_rol_permiso/)
+  await rechaza(guardar([{ rol: 'administrador', permiso: 'ventas.ver' }]), /permisos_rol_nivel/)
+  assert.equal((await leer()).length, cambiada.length, 'un error no deja la matriz a medias')
+
+  await guardar(original)
+  assert.deepEqual(await leer(), original)
 })

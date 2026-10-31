@@ -1,7 +1,7 @@
 <script setup>
 // Gestión de usuarios y niveles de seguridad (solo nivel 1: administrador).
 import { computed, onMounted, reactive, ref } from 'vue'
-import { UsersRound, UserPlus, Pencil, KeyRound, Check, Minus, LoaderCircle, ShieldCheck, Info } from 'lucide-vue-next'
+import { UsersRound, UserPlus, Pencil, KeyRound, Check, Minus, LoaderCircle, ShieldCheck, Info, Save, RotateCcw, Undo2 } from 'lucide-vue-next'
 import PageHeader from '@/components/PageHeader.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -9,7 +9,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useTiendaStore } from '@/stores/tienda'
 import { useValidacion } from '@/composables/useValidacion'
-import { ROLES, PERMISOS, DESCRIPCION_PERMISOS, datosRol } from '@/lib/permisos'
+import {
+  ROLES, PERMISOS, DESCRIPCION_PERMISOS, PERMISOS_ASIGNABLES, ROLES_EDITABLES, REQUISITOS,
+  agruparPermisos, datosRol, permisosPorDefecto,
+} from '@/lib/permisos'
 import { validarUsuario, reglaContrasena } from '@/lib/validaciones'
 import { fechaHora } from '@/lib/format'
 
@@ -74,6 +77,54 @@ async function guardar() {
     ui.error(e)
   } finally {
     guardando.value = false
+  }
+}
+
+// ── Permisos por nivel (el administrador los pone y los quita) ──────────
+const matriz = reactive(Object.fromEntries(ROLES_EDITABLES.map((r) => [r, []])))
+const guardados = ref(null)
+const guardandoPermisos = ref(false)
+const huella = (grupos) => JSON.stringify(ROLES_EDITABLES.map((r) => [...(grupos?.[r] ?? [])].sort()))
+
+function copiarMatriz(grupos) {
+  for (const r of ROLES_EDITABLES) matriz[r] = PERMISOS_ASIGNABLES.filter((p) => grupos?.[r]?.includes(p))
+}
+
+onMounted(async () => {
+  await auth.cargarPermisos()
+  guardados.value = auth.permisos ?? agruparPermisos(permisosPorDefecto())
+  copiarMatriz(guardados.value)
+})
+
+const hayCambios = computed(() => guardados.value && huella(matriz) !== huella(guardados.value))
+const esInicial = computed(() => huella(matriz) === huella(agruparPermisos(permisosPorDefecto())))
+const tiene = (rol, permiso) => rol === 'administrador' || matriz[rol]?.includes(permiso)
+const totalPermisos = (rol) => (rol === 'administrador' ? Object.keys(PERMISOS).length : matriz[rol]?.length ?? 0)
+
+/** Marca o desmarca un permiso; arrastra sus requisitos (vender exige ver el inventario, etc.). */
+function alternar(rol, permiso) {
+  const lista = new Set(matriz[rol])
+  if (lista.has(permiso)) {
+    lista.delete(permiso)
+    for (const [p, requisitos] of Object.entries(REQUISITOS)) if (requisitos.includes(permiso)) lista.delete(p)
+  } else {
+    lista.add(permiso)
+    for (const r of REQUISITOS[permiso] ?? []) lista.add(r)
+  }
+  matriz[rol] = PERMISOS_ASIGNABLES.filter((p) => lista.has(p))
+}
+
+async function guardarPermisos() {
+  guardandoPermisos.value = true
+  try {
+    await auth.guardarPermisos(ROLES_EDITABLES.flatMap((rol) => matriz[rol].map((permiso) => ({ rol, permiso }))))
+    guardados.value = auth.permisos
+    copiarMatriz(guardados.value)
+    ui.exito('Permisos guardados. Cada persona los verá al cambiar de pantalla o recargar la página.')
+  } catch (e) {
+    ui.error(e)
+  } finally {
+    guardandoPermisos.value = false
   }
 }
 
@@ -158,14 +209,19 @@ async function guardarClave() {
 
     <section class="card mt-6 overflow-hidden">
       <div class="p-6 pb-4">
-        <h2 class="flex items-center gap-2 text-lg font-semibold text-slate-900"><ShieldCheck class="size-5 text-blue-600" /> Los 4 niveles de seguridad</h2>
-        <p class="mt-1 text-sm text-slate-500">Estos permisos se aplican en la aplicación y también en la base de datos.</p>
+        <h2 class="flex items-center gap-2 text-lg font-semibold text-slate-900"><ShieldCheck class="size-5 text-blue-600" /> Permisos por nivel</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Marca o desmarca lo que puede hacer cada nivel. El administrador siempre tiene todos los permisos.
+          Los cambios se aplican en la aplicación y en la base de datos.
+        </p>
       </div>
       <div class="grid gap-3 px-6 pb-6 sm:grid-cols-2 xl:grid-cols-4">
         <div v-for="r in ROLES" :key="r.id" class="rounded-xl border border-slate-200 p-4">
           <span :class="['badge', colorNivel[r.id]]">Nivel {{ r.nivel }}</span>
           <p class="mt-2 font-semibold text-slate-900">{{ r.nombre }}</p>
-          <p class="mt-1 text-sm text-slate-500">{{ r.descripcion }}</p>
+          <p class="mt-1 text-sm text-slate-500">
+            {{ r.id === 'administrador' ? 'Control total; no se puede limitar.' : `${totalPermisos(r.id)} de ${PERMISOS_ASIGNABLES.length} permisos asignados.` }}
+          </p>
         </div>
       </div>
       <div class="overflow-x-auto border-t border-slate-100">
@@ -177,15 +233,40 @@ async function guardarClave() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(roles, permiso) in PERMISOS" :key="permiso">
+            <tr v-for="permiso in Object.keys(PERMISOS)" :key="permiso">
               <td class="pl-6 text-slate-700">{{ DESCRIPCION_PERMISOS[permiso] }}</td>
               <td v-for="r in ROLES" :key="r.id" class="text-center">
-                <Check v-if="roles.includes(r.id)" class="mx-auto size-5 text-emerald-600" :aria-label="`${r.nombre}: sí`" />
-                <Minus v-else class="mx-auto size-4 text-slate-300" :aria-label="`${r.nombre}: no`" />
+                <Check v-if="r.id === 'administrador'" class="mx-auto size-5 text-emerald-600" :aria-label="`${r.nombre}: sí (siempre)`" />
+                <span v-else-if="!PERMISOS_ASIGNABLES.includes(permiso)" class="inline-flex" title="Solo el administrador">
+                  <Minus class="mx-auto size-4 text-slate-300" :aria-label="`${r.nombre}: solo el administrador`" />
+                </span>
+                <input
+                  v-else
+                  type="checkbox"
+                  class="size-5 cursor-pointer rounded accent-emerald-600"
+                  :checked="tiene(r.id, permiso)"
+                  :disabled="guardandoPermisos"
+                  :aria-label="`${r.nombre}: ${DESCRIPCION_PERMISOS[permiso]}`"
+                  @change="alternar(r.id, permiso)"
+                />
               </td>
             </tr>
           </tbody>
         </table>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 border-t border-slate-100 px-6 py-4">
+        <p class="mr-auto text-sm" :class="hayCambios ? 'font-medium text-amber-700' : 'text-slate-500'">
+          {{ hayCambios ? 'Tienes cambios sin guardar.' : 'Al marcar un permiso se agregan los que necesita para funcionar (por ejemplo, vender exige consultar productos).' }}
+        </p>
+        <button v-if="!esInicial" class="btn btn-ghost" :disabled="guardandoPermisos" @click="copiarMatriz(agruparPermisos(permisosPorDefecto()))">
+          <RotateCcw class="size-4" /> Valores iniciales
+        </button>
+        <button v-if="hayCambios" class="btn btn-outline" :disabled="guardandoPermisos" @click="copiarMatriz(guardados)">
+          <Undo2 class="size-4" /> Deshacer
+        </button>
+        <button class="btn btn-primary" :disabled="!hayCambios || guardandoPermisos" @click="guardarPermisos">
+          <LoaderCircle v-if="guardandoPermisos" class="size-4 animate-spin" /><Save v-else class="size-4" /> Guardar permisos
+        </button>
       </div>
     </section>
 

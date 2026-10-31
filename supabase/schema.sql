@@ -33,6 +33,32 @@ update public.usuarios set rol = 'cajero' where rol not in ('administrador', 'su
 alter table public.usuarios add constraint usuarios_rol_valido
   check (rol in ('administrador', 'supervisor', 'cajero', 'consulta'));
 
+-- Permisos de los niveles 2 a 4: el administrador los pone y los quita desde
+-- «Usuarios y niveles». El administrador los tiene todos siempre, y
+-- «usuarios.gestionar» es solo suyo (por eso no está en la lista).
+create table if not exists public.permisos_rol (
+  rol     text not null constraint permisos_rol_nivel check (rol in ('supervisor', 'cajero', 'consulta')),
+  permiso text not null constraint permisos_rol_permiso check (permiso in (
+    'inventario.ver', 'inventario.editar', 'inventario.entradas', 'inventario.conteo',
+    'ventas.registrar', 'ventas.ver', 'ventas.anular', 'finanzas.ver', 'finanzas.editar',
+    'reportes.ver', 'respaldo.descargar', 'respaldo.restaurar')),
+  primary key (rol, permiso)
+);
+
+-- Matriz inicial (la misma de src/lib/permisos.js); solo se carga si la tabla está vacía,
+-- así volver a ejecutar este archivo no borra lo que el administrador configuró.
+insert into public.permisos_rol (rol, permiso)
+select v.rol, v.permiso
+from (values
+  ('supervisor', 'inventario.ver'), ('supervisor', 'inventario.editar'), ('supervisor', 'inventario.entradas'),
+  ('supervisor', 'inventario.conteo'), ('supervisor', 'ventas.registrar'), ('supervisor', 'ventas.ver'),
+  ('supervisor', 'ventas.anular'), ('supervisor', 'finanzas.ver'), ('supervisor', 'finanzas.editar'),
+  ('supervisor', 'reportes.ver'), ('supervisor', 'respaldo.descargar'),
+  ('cajero', 'inventario.ver'), ('cajero', 'ventas.registrar'), ('cajero', 'ventas.ver'),
+  ('consulta', 'inventario.ver'), ('consulta', 'ventas.ver'), ('consulta', 'finanzas.ver'), ('consulta', 'reportes.ver')
+) as v(rol, permiso)
+where not exists (select 1 from public.permisos_rol);
+
 -- ---------------------------------------------------------------------
 --  2. Tablas de negocio
 -- ---------------------------------------------------------------------
@@ -203,6 +229,35 @@ begin
   end if;
 end $$;
 
+-- ¿El usuario de la sesión tiene este permiso? El administrador los tiene todos.
+create or replace function privado.tiene_permiso(p_permiso text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select coalesce(
+    privado.rol_actual() = 'administrador'
+    or exists (select 1 from public.permisos_rol p where p.rol = privado.rol_actual() and p.permiso = p_permiso),
+    false)
+$$;
+
+-- Corta la operación si el usuario no está autorizado o si su nivel no tiene el permiso.
+create or replace function privado.exigir_permiso(p_permiso text)
+returns void
+language plpgsql stable
+set search_path = ''
+as $$
+declare
+  v_rol text := privado.rol_actual();
+begin
+  if v_rol is null then
+    raise exception 'Tu usuario no está autorizado para usar Britny Max' using errcode = '42501';
+  end if;
+  if not privado.tiene_permiso(p_permiso) then
+    raise exception 'Tu nivel de acceso (%) no permite esta operación', privado.nombre_rol(v_rol) using errcode = '42501';
+  end if;
+end $$;
+
 create or replace function privado.validar_fecha_operacion(p_fecha timestamptz)
 returns timestamptz
 language plpgsql stable
@@ -232,6 +287,8 @@ grant execute on function privado.rol_actual() to authenticated;
 grant execute on function privado.tiene_rol(text[]) to authenticated;
 grant execute on function privado.nombre_rol(text) to authenticated;
 grant execute on function privado.exigir_rol(text[]) to authenticated;
+grant execute on function privado.tiene_permiso(text) to authenticated;
+grant execute on function privado.exigir_permiso(text) to authenticated;
 grant execute on function privado.validar_fecha_operacion(timestamptz) to authenticated;
 grant execute on function privado.dia_bogota(timestamptz) to authenticated;
 
@@ -345,6 +402,7 @@ create trigger egresos_validar
 -- ---------------------------------------------------------------------
 
 alter table public.usuarios               enable row level security;
+alter table public.permisos_rol           enable row level security;
 alter table public.categorias             enable row level security;
 alter table public.productos              enable row level security;
 alter table public.ventas                 enable row level security;
@@ -360,7 +418,7 @@ begin
   for r in
     select policyname, tablename from pg_policies
     where schemaname = 'public'
-      and tablename in ('usuarios', 'categorias', 'productos', 'ventas', 'detalle_venta',
+      and tablename in ('usuarios', 'permisos_rol', 'categorias', 'productos', 'ventas', 'detalle_venta',
                         'movimientos_inventario', 'ingresos', 'egresos')
   loop
     execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
@@ -373,29 +431,29 @@ create policy usuarios_ver on public.usuarios
   for select to authenticated
   using (id = (select auth.uid()) or (select privado.tiene_rol('administrador')));
 
--- Inventario: todos los niveles consultan; administrador y supervisor editan.
+-- Inventario: todos los niveles consultan; edita quien tenga «inventario.editar».
 create policy categorias_ver on public.categorias
   for select to authenticated using ((select privado.es_usuario_activo()));
 create policy categorias_crear on public.categorias
-  for insert to authenticated with check ((select privado.tiene_rol('administrador', 'supervisor')));
+  for insert to authenticated with check ((select privado.tiene_permiso('inventario.editar')));
 create policy categorias_editar on public.categorias
   for update to authenticated
-  using ((select privado.tiene_rol('administrador', 'supervisor')))
-  with check ((select privado.tiene_rol('administrador', 'supervisor')));
+  using ((select privado.tiene_permiso('inventario.editar')))
+  with check ((select privado.tiene_permiso('inventario.editar')));
 create policy categorias_eliminar on public.categorias
-  for delete to authenticated using ((select privado.tiene_rol('administrador', 'supervisor')));
+  for delete to authenticated using ((select privado.tiene_permiso('inventario.editar')));
 
 -- Productos: sin eliminación física (se retiran con activo = false). Las
 -- existencias de una venta del cajero se descuentan dentro de registrar_venta.
 create policy productos_ver on public.productos
   for select to authenticated using ((select privado.es_usuario_activo()));
 create policy productos_crear on public.productos
-  for insert to authenticated with check ((select privado.tiene_rol('administrador', 'supervisor')));
+  for insert to authenticated with check ((select privado.tiene_permiso('inventario.editar')));
 create policy productos_editar on public.productos
   for update to authenticated
-  using ((select privado.tiene_rol('administrador', 'supervisor'))
+  using ((select privado.tiene_permiso('inventario.editar'))
          or ((select privado.es_usuario_activo()) and (select privado.en_operacion())))
-  with check ((select privado.tiene_rol('administrador', 'supervisor'))
+  with check ((select privado.tiene_permiso('inventario.editar'))
          or ((select privado.es_usuario_activo()) and (select privado.en_operacion())));
 
 -- Ventas, detalles y movimientos: lectura para todos los niveles; escritura
@@ -417,35 +475,46 @@ create policy movimientos_ver on public.movimientos_inventario
 create policy movimientos_operacion_crear on public.movimientos_inventario
   for insert to authenticated with check ((select privado.es_usuario_activo()) and (select privado.en_operacion()));
 
--- Finanzas: administrador, supervisor y consulta las ven; solo administrador
--- y supervisor las modifican. El ingreso de una venta lo crea registrar_venta
--- (también para el cajero) y solo se retira al anularla.
+-- Finanzas: las ve quien tenga «finanzas.ver» y las modifica quien tenga
+-- «finanzas.editar». Los ingresos y egresos que generan las operaciones
+-- (ventas, anulaciones, entradas) se escriben dentro de ellas, que ya
+-- comprueban su propio permiso; el ingreso de una venta solo se retira al anularla.
 create policy ingresos_ver on public.ingresos
-  for select to authenticated using ((select privado.tiene_rol('administrador', 'supervisor', 'consulta')));
+  for select to authenticated using ((select privado.tiene_permiso('finanzas.ver')));
 create policy ingresos_crear on public.ingresos
   for insert to authenticated
   with check (
-    ((select privado.tiene_rol('administrador', 'supervisor')) and venta_id is null)
+    ((select privado.tiene_permiso('finanzas.editar')) and venta_id is null)
     or ((select privado.es_usuario_activo()) and (select privado.en_operacion()))
   );
 create policy ingresos_editar on public.ingresos
   for update to authenticated
-  using ((select privado.tiene_rol('administrador', 'supervisor')) and (venta_id is null or (select privado.en_operacion())))
-  with check ((select privado.tiene_rol('administrador', 'supervisor')) and (venta_id is null or (select privado.en_operacion())));
+  using (((select privado.tiene_permiso('finanzas.editar')) and venta_id is null)
+         or ((select privado.es_usuario_activo()) and (select privado.en_operacion())))
+  with check (((select privado.tiene_permiso('finanzas.editar')) and venta_id is null)
+         or ((select privado.es_usuario_activo()) and (select privado.en_operacion())));
 create policy ingresos_eliminar on public.ingresos
   for delete to authenticated
-  using ((select privado.tiene_rol('administrador', 'supervisor')) and (venta_id is null or (select privado.en_operacion())));
+  using (((select privado.tiene_permiso('finanzas.editar')) and venta_id is null)
+         or ((select privado.es_usuario_activo()) and (select privado.en_operacion())));
 
 create policy egresos_ver on public.egresos
-  for select to authenticated using ((select privado.tiene_rol('administrador', 'supervisor', 'consulta')));
+  for select to authenticated using ((select privado.tiene_permiso('finanzas.ver')));
 create policy egresos_crear on public.egresos
-  for insert to authenticated with check ((select privado.tiene_rol('administrador', 'supervisor')));
+  for insert to authenticated
+  with check ((select privado.tiene_permiso('finanzas.editar'))
+              or ((select privado.es_usuario_activo()) and (select privado.en_operacion())));
 create policy egresos_editar on public.egresos
   for update to authenticated
-  using ((select privado.tiene_rol('administrador', 'supervisor')))
-  with check ((select privado.tiene_rol('administrador', 'supervisor')));
+  using ((select privado.tiene_permiso('finanzas.editar')))
+  with check ((select privado.tiene_permiso('finanzas.editar')));
 create policy egresos_eliminar on public.egresos
-  for delete to authenticated using ((select privado.tiene_rol('administrador', 'supervisor')));
+  for delete to authenticated using ((select privado.tiene_permiso('finanzas.editar')));
+
+-- Permisos por nivel: todos los usuarios activos leen la matriz (la app la usa
+-- para mostrar el menú); solo se modifica con guardar_permisos (administrador).
+create policy permisos_ver on public.permisos_rol
+  for select to authenticated using ((select privado.es_usuario_activo()));
 
 -- Privilegios: los visitantes anónimos no acceden a nada.
 revoke all on all tables in schema public from anon;
@@ -466,7 +535,7 @@ declare
   v_id       uuid;
   v_cantidad integer;
 begin
-  perform privado.exigir_rol('administrador', 'supervisor');
+  perform privado.exigir_permiso('inventario.editar');
   perform set_config('britnymax.operacion', 'si', true);
   if jsonb_typeof(p_producto) is distinct from 'object' then raise exception 'Datos del producto inválidos'; end if;
 
@@ -511,7 +580,7 @@ declare
   it       jsonb;
   p        public.productos%rowtype;
 begin
-  perform privado.exigir_rol('administrador', 'supervisor', 'cajero');
+  perform privado.exigir_permiso('ventas.registrar');
   perform set_config('britnymax.operacion', 'si', true);
   v_fecha := privado.validar_fecha_operacion(p_fecha);
   if jsonb_typeof(p_items) is distinct from 'array' or jsonb_array_length(p_items) = 0 then
@@ -565,7 +634,7 @@ declare
   d       public.detalle_venta%rowtype;
   v_stock integer;
 begin
-  perform privado.exigir_rol('administrador', 'supervisor');
+  perform privado.exigir_permiso('ventas.anular');
   perform set_config('britnymax.operacion', 'si', true);
   select * into v from public.ventas where id = p_venta for update;
   if not found then raise exception 'Venta no encontrada'; end if;
@@ -607,7 +676,7 @@ declare
   it         jsonb;
   p          public.productos%rowtype;
 begin
-  perform privado.exigir_rol('administrador', 'supervisor');
+  perform privado.exigir_permiso('inventario.entradas');
   perform set_config('britnymax.operacion', 'si', true);
   v_fecha := privado.validar_fecha_operacion(p_fecha);
   if char_length(v_concepto) > 120 then raise exception 'El concepto admite máximo 120 caracteres'; end if;
@@ -664,7 +733,7 @@ declare
   it        jsonb;
   p         public.productos%rowtype;
 begin
-  perform privado.exigir_rol('administrador', 'supervisor');
+  perform privado.exigir_permiso('inventario.conteo');
   perform set_config('britnymax.operacion', 'si', true);
   v_fecha := privado.validar_fecha_operacion(p_fecha);
   if char_length(v_motivo) < 3 then v_motivo := 'Conteo físico'; end if;
@@ -703,7 +772,7 @@ as $$
 declare
   v_filas integer := 0;
 begin
-  perform privado.exigir_rol('administrador');
+  perform privado.exigir_permiso('respaldo.restaurar');
   perform set_config('britnymax.operacion', 'si', true);
   if jsonb_typeof(p_filas) is distinct from 'array' then raise exception 'Formato de respaldo inválido'; end if;
   if jsonb_array_length(p_filas) > 1000 then raise exception 'Bloque de respaldo demasiado grande'; end if;
@@ -851,6 +920,27 @@ begin
 
   update public.usuarios u set nombre = btrim(p_nombre), rol = p_rol, activo = v_activo where u.id = p_id;
 end $$;
+
+-- Reemplaza los permisos de los niveles 2 a 4 por la lista recibida
+-- ([{ "rol": "cajero", "permiso": "finanzas.ver" }, …]). Las restricciones de la
+-- tabla rechazan niveles o permisos inválidos, incluido «usuarios.gestionar».
+create or replace function public.guardar_permisos(p_permisos jsonb)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  perform privado.exigir_rol('administrador');
+  if jsonb_typeof(p_permisos) is distinct from 'array' then
+    raise exception 'Formato de permisos inválido';
+  end if;
+  delete from public.permisos_rol where rol is not null;
+  insert into public.permisos_rol (rol, permiso)
+  select distinct x ->> 'rol', x ->> 'permiso' from jsonb_array_elements(p_permisos) as x;
+end $$;
+
+revoke execute on function public.guardar_permisos(jsonb) from public, anon;
+grant execute on function public.guardar_permisos(jsonb) to authenticated;
 
 revoke execute on function public.listar_usuarios() from public, anon;
 revoke execute on function public.autorizar_usuario(text, text, text) from public, anon;
