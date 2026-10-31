@@ -1,6 +1,8 @@
 <script setup>
 // RF15 – Generación de reportes: inventario, ventas, movimientos de mercancía,
 // ingresos y egresos en un periodo, y discrepancias detectadas en conteos físicos.
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion, POR_PAGINA } from '@/composables/usePaginacion'
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -251,6 +253,12 @@ function exportar() {
 }
 
 const imprimir = () => window.print()
+// Paginación de 10 filas por tabla; vuelve a la página 1 al cambiar el periodo o el filtro.
+const pagInventario = usePaginacion(() => filasInventario.value, { reiniciarCon: () => filtroEstado.value })
+const pagVendidos = usePaginacion(() => masVendidos.value, { reiniciarCon: () => periodo.value })
+const pagMovimientos = usePaginacion(() => filasMovimientos.value, { reiniciarCon: () => [periodo.value, filtroMovimiento.value] })
+const pagFinanzas = usePaginacion(() => filasFinanzas.value, { reiniciarCon: () => periodo.value })
+const pagAjustes = usePaginacion(() => ajustes.value, { reiniciarCon: () => periodo.value })
 </script>
 
 <template>
@@ -335,7 +343,7 @@ const imprimir = () => window.print()
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="p in filasInventario" :key="p.id">
+                <tr v-for="p in pagInventario.visibles.value" :key="p.id">
                   <td class="pl-6 font-semibold text-slate-900">{{ p.nombre }}</td>
                   <td class="text-slate-500">{{ tienda.nombreCategoria(p.categoria_id) }}</td>
                   <td class="text-right tabular-nums">{{ p.cantidad }} <span class="text-xs text-slate-400">/ mín. {{ p.stock_minimo }}</span></td>
@@ -346,6 +354,7 @@ const imprimir = () => window.print()
             </table>
             <EmptyState v-else :icono="Package" titulo="No hay productos con ese estado" />
           </div>
+          <Paginador v-model="pagInventario.pagina.value" :total="pagInventario.total.value" />
         </section>
       </div>
     </div>
@@ -389,14 +398,15 @@ const imprimir = () => window.print()
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(f, i) in masVendidos" :key="f.nombre">
-                  <td class="text-slate-400 tabular-nums">{{ i + 1 }}</td>
+                <tr v-for="(f, i) in pagVendidos.visibles.value" :key="f.nombre">
+                  <td class="text-slate-400 tabular-nums">{{ (pagVendidos.pagina.value - 1) * POR_PAGINA + i + 1 }}</td>
                   <td class="font-medium text-slate-800">{{ f.nombre }}</td>
                   <td class="text-right tabular-nums">{{ f.unidades }}</td>
                   <td class="text-right font-semibold tabular-nums">{{ dinero(f.total) }}</td>
                 </tr>
               </tbody>
             </table>
+          <Paginador v-model="pagVendidos.pagina.value" :total="pagVendidos.total.value" />
           </div>
         </div>
       </section>
@@ -423,7 +433,7 @@ const imprimir = () => window.print()
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in filasMovimientos" :key="m.id">
+              <tr v-for="m in pagMovimientos.visibles.value" :key="m.id">
                 <td class="pl-6 whitespace-nowrap text-slate-500">{{ fechaHora(m.fecha) }}</td>
                 <td class="font-medium text-slate-800">{{ m.nombre_producto }}</td>
                 <td><StatusBadge :estado="m.tipo" /></td>
@@ -437,6 +447,7 @@ const imprimir = () => window.print()
           </table>
           <EmptyState v-else :icono="ArrowLeftRight" titulo="Sin movimientos de mercancía en este periodo" />
         </div>
+        <Paginador v-model="pagMovimientos.pagina.value" :total="pagMovimientos.total.value" />
       </section>
     </div>
 
@@ -514,7 +525,7 @@ const imprimir = () => window.print()
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in filasFinanzas" :key="r.clase + r.id">
+              <tr v-for="r in pagFinanzas.visibles.value" :key="r.clase + r.id">
                 <td class="pl-6 whitespace-nowrap text-slate-500">{{ fechaCorta(r.fecha) }}</td>
                 <td><StatusBadge :estado="r.clase" /></td>
                 <td class="text-slate-500">{{ etiquetaTipo(r.tipo) }}</td>
@@ -526,6 +537,7 @@ const imprimir = () => window.print()
             </tbody>
           </table>
         </div>
+        <Paginador v-model="pagFinanzas.pagina.value" :total="pagFinanzas.total.value" />
       </section>
     </div>
 
@@ -556,7 +568,7 @@ const imprimir = () => window.print()
               </tr>
             </thead>
             <tbody>
-              <tr v-for="m in ajustes" :key="m.id">
+              <tr v-for="m in pagAjustes.visibles.value" :key="m.id">
                 <td class="pl-6 whitespace-nowrap text-slate-500">{{ fechaHora(m.fecha) }}</td>
                 <td class="font-medium text-slate-800">{{ m.nombre_producto }}</td>
                 <td :class="['text-right font-semibold tabular-nums', m.cantidad < 0 ? 'text-rose-600' : 'text-emerald-600']">
@@ -569,6 +581,7 @@ const imprimir = () => window.print()
           </table>
           <EmptyState v-else :icono="PackageCheck" titulo="Sin discrepancias en este periodo" texto="Realiza un conteo físico para comparar el inventario real con el registrado." />
         </div>
+        <Paginador v-model="pagAjustes.pagina.value" :total="pagAjustes.total.value" />
       </section>
     </div>
   </div>

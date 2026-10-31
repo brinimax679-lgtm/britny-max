@@ -1,5 +1,7 @@
 <script setup>
 // RF11 – Registro de ingresos y egresos (consulta, registro, edición y eliminación).
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion } from '@/composables/usePaginacion'
 import { computed, reactive, ref } from 'vue'
 import { TrendingUp, TrendingDown, Plus, Pencil, Trash2, Search, Receipt, Wallet, Lock, FileSpreadsheet, LoaderCircle } from 'lucide-vue-next'
 import PageHeader from '@/components/PageHeader.vue'
@@ -43,6 +45,10 @@ const registros = computed(() => {
   )
 })
 const total = computed(() => registros.value.reduce((s, r) => s + r.monto, 0))
+// 10 registros por página; totales y gráfico usan el periodo completo.
+const { pagina, total: totalRegistros, visibles: registrosPagina } = usePaginacion(() => registros.value, {
+  reiniciarCon: () => [periodo.value, tipo.value, busqueda.value],
+})
 const porTipo = computed(() =>
   tipos
     .map((t) => ({ etiqueta: t.label, valor: registros.value.filter((r) => r.tipo === t.id).reduce((s, r) => s + r.monto, 0) }))
@@ -169,7 +175,7 @@ function exportar() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in registros" :key="r.id">
+            <tr v-for="r in registrosPagina" :key="r.id">
               <td class="pl-6 whitespace-nowrap text-slate-500">{{ fechaCorta(r.fecha) }}</td>
               <td><StatusBadge :estado="clase" :texto="etiquetaTipo(r.tipo)" /></td>
               <td class="font-medium text-slate-800">{{ r.concepto }}</td>
@@ -194,6 +200,7 @@ function exportar() {
           <button v-if="puedeEditar" class="btn btn-primary" @click="nuevo"><Plus class="size-4" /> Registrar {{ singular }}</button>
         </EmptyState>
       </div>
+      <Paginador v-model="pagina" :total="totalRegistros" />
     </section>
 
     <BaseModal

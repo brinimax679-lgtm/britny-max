@@ -1,5 +1,7 @@
 <script setup>
 // Gestión de usuarios y niveles de seguridad (solo nivel 1: administrador).
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion } from '@/composables/usePaginacion'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { UsersRound, UserPlus, Pencil, KeyRound, Check, Minus, LoaderCircle, ShieldCheck, Info, Save, RotateCcw, Undo2 } from 'lucide-vue-next'
 import PageHeader from '@/components/PageHeader.vue'
@@ -22,6 +24,7 @@ const modoLocal = useTiendaStore().modo === 'local'
 
 const usuarios = ref([])
 const cargando = ref(true)
+const { pagina, total: totalUsuarios, visibles: usuariosPagina } = usePaginacion(() => usuarios.value)
 
 async function cargar() {
   cargando.value = true
@@ -174,7 +177,7 @@ async function guardarClave() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in usuarios" :key="u.id">
+            <tr v-for="u in usuariosPagina" :key="u.id">
               <td class="pl-6 font-semibold text-slate-900">
                 {{ u.nombre }}
                 <span v-if="u.id === auth.usuario?.id" class="ml-1 text-xs font-normal text-slate-400">(tú)</span>
@@ -205,6 +208,7 @@ async function guardarClave() {
         </div>
         <EmptyState v-else :icono="UsersRound" titulo="Sin usuarios" />
       </div>
+      <Paginador v-model="pagina" :total="totalUsuarios" />
     </section>
 
     <section class="card mt-6 overflow-hidden">

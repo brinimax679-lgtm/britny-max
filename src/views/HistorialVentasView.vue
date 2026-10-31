@@ -1,5 +1,7 @@
 <script setup>
 // Consulta de ventas registradas y anulación (devuelve las existencias y retira el ingreso).
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion } from '@/composables/usePaginacion'
 import { computed, ref } from 'vue'
 import { History, ShoppingCart, ChevronDown, Ban, Receipt } from 'lucide-vue-next'
 import PageHeader from '@/components/PageHeader.vue'
@@ -22,6 +24,11 @@ const ventas = computed(() => tienda.ventas.filter((v) => enRango(v.fecha, perio
 const validas = computed(() => ventas.value.filter((v) => v.estado !== 'anulada'))
 const total = computed(() => validas.value.reduce((s, v) => s + v.total, 0))
 const promedio = computed(() => (validas.value.length ? total.value / validas.value.length : 0))
+
+// 10 ventas por página; los totales del periodo se calculan con todas.
+const { pagina, total: totalVentas, visibles: ventasPagina } = usePaginacion(() => ventas.value, {
+  reiniciarCon: () => periodo.value,
+})
 
 const unidades = (v) => v.detalles.reduce((s, d) => s + d.cantidad, 0)
 
@@ -63,7 +70,7 @@ async function anular(v) {
       </div>
 
       <ul v-if="ventas.length" class="divide-y divide-slate-100 border-t border-slate-100">
-        <li v-for="v in ventas" :key="v.id">
+        <li v-for="v in ventasPagina" :key="v.id">
           <button
             class="flex w-full flex-wrap items-center gap-x-6 gap-y-2 px-6 py-4 text-left transition hover:bg-slate-50/70"
             :aria-expanded="abierta === v.id"
@@ -108,6 +115,7 @@ async function anular(v) {
         </li>
       </ul>
       <EmptyState v-else :icono="Receipt" titulo="No hay ventas en este periodo" texto="Cambia el rango de fechas o registra una nueva venta." />
+      <Paginador v-model="pagina" :total="totalVentas" />
     </section>
   </div>
 </template>

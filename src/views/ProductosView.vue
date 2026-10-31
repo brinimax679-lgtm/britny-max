@@ -9,6 +9,8 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import CategoriasModal from '@/components/CategoriasModal.vue'
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion, POR_PAGINA } from '@/composables/usePaginacion'
 import { useTiendaStore } from '@/stores/tienda'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -42,6 +44,11 @@ const filtrados = computed(() => {
       normalizarTexto(tienda.nombreCategoria(p.categoria_id)).includes(t)
     )
   })
+})
+
+// Paginación de 10 en 10; vuelve a la primera página al cambiar la búsqueda o los filtros.
+const { pagina, total, visibles } = usePaginacion(() => filtrados.value, {
+  reiniciarCon: () => [busqueda.value, categoria.value, estado.value],
 })
 
 function alPresionarEnter() {
@@ -141,7 +148,7 @@ function exportar() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in filtrados" :key="p.id">
+            <tr v-for="p in visibles" :key="p.id">
               <td class="pl-6"><span class="codigo">{{ p.codigo_barras || '—' }}</span></td>
               <td class="font-semibold text-slate-900">{{ p.nombre }}</td>
               <td class="text-slate-500">{{ tienda.nombreCategoria(p.categoria_id) }}</td>
@@ -173,7 +180,8 @@ function exportar() {
         </EmptyState>
       </div>
 
-      <div class="flex justify-between border-t border-slate-100 px-6 py-4 text-sm text-slate-500">
+      <Paginador v-model="pagina" :total="total" />
+      <div v-if="total <= POR_PAGINA" class="flex justify-between border-t border-slate-100 px-6 py-4 text-sm text-slate-500">
         <span>Mostrando {{ filtrados.length }} producto(s)</span>
         <span>{{ tienda.catalogo.length }} registros en total</span>
       </div>

@@ -1,6 +1,8 @@
 <script setup>
 // Conteo físico: compara el inventario real con el registrado, muestra las
 // discrepancias y ajusta las existencias dejando el registro del ajuste.
+import Paginador from '@/components/Paginador.vue'
+import { usePaginacion } from '@/composables/usePaginacion'
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ClipboardCheck, Search, LoaderCircle, TriangleAlert } from 'lucide-vue-next'
@@ -34,6 +36,11 @@ const visibles = computed(() => {
       (!categoria.value || p.categoria_id === categoria.value) &&
       (!t || normalizarTexto(p.nombre).includes(t) || p.codigo_barras?.includes(t)),
   )
+})
+
+// 10 productos por página; el resumen y el guardado siguen usando todos los conteos.
+const { pagina, total, visibles: enPagina } = usePaginacion(() => visibles.value, {
+  reiniciarCon: () => [busqueda.value, categoria.value],
 })
 
 const resumen = computed(() => {
@@ -129,7 +136,7 @@ async function guardar() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in visibles" :key="p.id" :class="diferencia(p) !== 0 && 'bg-amber-50/50'">
+            <tr v-for="p in enPagina" :key="p.id" :class="diferencia(p) !== 0 && 'bg-amber-50/50'">
               <td class="pl-6">
                 <p class="font-semibold text-slate-900">{{ p.nombre }}</p>
                 <p class="font-mono text-xs text-slate-400">{{ p.codigo_barras || 'sin código' }}</p>
@@ -158,6 +165,7 @@ async function guardar() {
           </tbody>
         </table>
       </div>
+      <Paginador v-model="pagina" :total="total" />
 
       <div class="flex flex-col gap-4 border-t border-slate-100 p-6 sm:flex-row sm:items-end sm:justify-between">
         <div class="w-full sm:max-w-sm">
