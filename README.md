@@ -5,6 +5,10 @@ Sistema de información web para la tienda **Britny Max** (Rionegro, Santander),
 trabajo de grado "Desarrollo de un Sistema de Información Web para la Gestión de Inventarios,
 Ingresos y Egresos en el Establecimiento Comercial Minorista Britny Max".
 
+- **Sistema publicado:** <https://britny-max.vercel.app> (Vercel + Supabase).
+- **Documento del trabajo de grado:** [`documentos/Trabajo Final - corregido.pdf`](documentos/) — incluye el
+  plan de pruebas, el modelo entidad-relación, el script de la base de datos y la trazabilidad del código.
+
 ## Requerimientos implementados
 
 | Requerimiento | Dónde está en la aplicación |
@@ -18,7 +22,7 @@ Ingresos y Egresos en el Establecimiento Comercial Minorista Britny Max".
 | **RF11** Registro de ingresos y egresos | Ingresos y Egresos: registrar, editar y eliminar por tipo (servicios públicos, arriendo, compra de mercancía…). |
 | **RF15** Generación de reportes | Reportes: inventario (disponibles, agotados, stock bajo, valor), ventas y productos más vendidos, entradas y salidas de mercancía, ingresos y egresos por periodo, y discrepancias. Exporta a Excel (CSV) e imprime. |
 | **RNF01** Tiempo de respuesta | Vistas cargadas bajo demanda y datos en memoria tras el primer ingreso. |
-| **RNF02** Seguridad | 4 niveles de acceso aplicados en la app y en la base de datos, cierre por 5 minutos de inactividad, URL sin tokens ni identificadores, Row Level Security en todas las tablas y encabezados de seguridad. Ver [Seguridad](#seguridad). |
+| **RNF02** Seguridad | 4 niveles de acceso con **permisos que la administradora pone y quita** desde *Usuarios y niveles*, aplicados en la app y en la base de datos; cierre por 5 minutos de inactividad, URL sin tokens ni identificadores, Row Level Security en todas las tablas y encabezados de seguridad. Ver [Seguridad](#seguridad). |
 | **RNF03** Facilidad de uso | Interfaz basada en los mockups de Figma, mensajes claros y confirmaciones. |
 | **RNF04 / RNF05** Disponibilidad y compatibilidad | Aplicación web adaptable a computador y celular (Chrome, Edge, Firefox). |
 | **RNF07** Integridad | Validaciones idénticas en la interfaz (`src/lib/validaciones.js`) y en PostgreSQL; ventas, entradas, anulaciones y ajustes son transaccionales; las existencias no se pueden editar a mano. |
@@ -31,14 +35,17 @@ alertas de stock bajo y categorías.
 
 ## Cómo ejecutarlo
 
-Requisitos: Node.js 20 o superior.
+Requisitos: Node.js 20 o superior y el archivo `.env` con la conexión a Supabase (ver
+[Modo producción con Supabase](#modo-producción-con-supabase)).
 
 ```bash
 npm install
-npm run dev
+npm run dev        # con Supabase (.env)
+npm run dev:demo   # modo demostración, sin base de datos
 ```
 
-Abre la dirección que muestra la terminal (por defecto `http://localhost:5173`).
+Abre la dirección que muestra la terminal (por defecto `http://localhost:5173`). Sin `.env`, `npm run dev`
+muestra un aviso de configuración en lugar de guardar datos en el navegador.
 
 ### Iniciar con doble clic en Windows (uso diario en la tienda)
 
@@ -54,10 +61,12 @@ Abre la dirección que muestra la terminal (por defecto `http://localhost:5173`)
 - Para que inicie al encender el computador: presiona `Win + R`, escribe `shell:startup` y pega allí
   un acceso directo a `iniciar-britny-max.bat`.
 
-### Modo demostración (sin configurar nada)
+### Modo demostración (`npm run dev:demo`)
 
-Si no existe el archivo `.env`, la aplicación guarda la información **en el navegador**
-(localStorage) y carga un catálogo de ejemplo con tres semanas de movimientos.
+Solo para pruebas y presentaciones en el computador de desarrollo: la aplicación guarda la información
+**en el navegador** (localStorage) y carga un catálogo de ejemplo con tres semanas de movimientos. Este
+modo **no existe en la versión publicada**: una compilación de producción sin las variables de Supabase se
+detiene con un error.
 
 Trae una cuenta por nivel de acceso para mostrar qué ve cada uno (también aparecen en la pantalla de acceso):
 
@@ -68,8 +77,6 @@ Trae una cuenta por nivel de acceso para mostrar qué ve cada uno (también apar
 | `cajero` | `cajero2026` | 3 · Cajero |
 | `consulta` | `consulta2026` | 4 · Consulta |
 
-Si ya configuraste Supabase en `.env`, puedes abrir igualmente el modo demo con `npm run dev:demo`.
-
 En *Respaldo y cuenta* puedes volver a cargar los datos de ejemplo o empezar con el sistema vacío.
 
 ### Modo producción con Supabase
@@ -79,8 +86,9 @@ En *Respaldo y cuenta* puedes volver a cargar los datos de ejemplo o empezar con
    Se puede volver a ejecutar sin perder datos (actualiza funciones y políticas).
 3. En **Authentication → Sign In / Providers** desactiva *Allow new users to sign up*.
 4. En **Authentication → Users → Add user** crea la cuenta con correo y contraseña (mínimo 8
-   caracteres, con letras y números) y marca *Auto Confirm User*. Si el correo es
-   `admin@britnymax.app`, podrá ingresar escribiendo solo `admin`.
+   caracteres, con letras y números) y marca *Auto Confirm User*. Si el correo termina en el dominio
+   de `VITE_AUTH_DOMAIN` (en este proyecto, `admin@correo.com` con `VITE_AUTH_DOMAIN=correo.com`),
+   podrá ingresar escribiendo solo `admin`.
 5. **Autoriza** esa cuenta para usar el sistema (sin este paso no puede entrar aunque la contraseña sea correcta).
    En el SQL Editor:
    ```sql
@@ -91,26 +99,42 @@ En *Respaldo y cuenta* puedes volver a cargar los datos de ejemplo o empezar con
    Las demás personas (supervisor, cajero, consulta) se crean igual en *Authentication → Users* y la
    administradora las autoriza desde la app, en **Usuarios y niveles**, escribiendo su correo y su nivel.
    Ahí mismo se cambia el nivel o se desactiva una cuenta.
-6. Copia `.env.example` como `.env` y completa `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`
-   (Project Settings → API Keys; usa la clave **anon/publishable**, nunca la *service_role/secret*).
+6. Copia `.env.example` como `.env` y completa `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y
+   `VITE_AUTH_DOMAIN` (Project Settings → API Keys; usa la clave **anon/publishable**, nunca la
+   *service_role/secret*).
 7. Comprueba la instalación (no guarda datos; pide el usuario y la contraseña del paso 4):
    ```bash
    npm run verificar:supabase
    ```
-8. Reinicia `npm run dev`. El menú lateral mostrará "Conectado a la nube".
+8. Reinicia `npm run dev`.
+
+Cuando cambie `supabase/schema.sql` (por ejemplo, al agregar los permisos editables), vuelve a ejecutarlo
+completo en el SQL Editor: conserva los datos, las cuentas y los permisos ya configurados.
 
 Para pasar los datos del modo demo a Supabase: en modo demo descarga un respaldo (*Respaldo y cuenta*),
 conecta Supabase y restáuralo desde la misma pantalla.
 
 ## Seguridad
 
-### Los 4 niveles de acceso
+### Los 4 niveles de acceso y sus permisos
 
-Cada usuario tiene un nivel. La misma matriz está en la aplicación ([`src/lib/permisos.js`](src/lib/permisos.js))
-y en la base de datos (políticas y funciones de [`supabase/schema.sql`](supabase/schema.sql)), así que un nivel
-no puede saltarse sus límites aunque intente usar la API directamente.
+Cada usuario tiene un nivel. El **administrador** tiene siempre todos los permisos; los permisos de
+**supervisor, cajero y consulta los pone y los quita la administradora** en *Usuarios y niveles*, marcando
+las casillas de la matriz y pulsando *Guardar permisos*.
 
-| Permiso | 1 Administrador | 2 Supervisor | 3 Cajero | 4 Consulta |
+- La matriz se guarda en la tabla `public.permisos_rol` y la consultan las políticas y funciones de
+  [`supabase/schema.sql`](supabase/schema.sql) (`privado.tiene_permiso` / `privado.exigir_permiso`), así que
+  un nivel no puede saltarse sus límites aunque intente usar la API directamente. Solo la función
+  `guardar_permisos` (nivel administrador) la modifica.
+- *Administrar usuarios y niveles* es exclusivo del administrador y no se puede asignar.
+- Al marcar un permiso se agregan los que necesita (por ejemplo, *Registrar ventas* exige *Consultar
+  productos*); al quitar uno, se quitan los que dependen de él (`REQUISITOS` en
+  [`src/lib/permisos.js`](src/lib/permisos.js)).
+- Las personas conectadas reciben los cambios al cambiar de pantalla (la app vuelve a leer la matriz como
+  máximo cada 30 segundos), sin cerrar sesión.
+- *Valores iniciales* restaura la matriz de la tabla siguiente:
+
+| Permiso (matriz inicial) | 1 Administrador | 2 Supervisor | 3 Cajero | 4 Consulta |
 |---|:-:|:-:|:-:|:-:|
 | Consultar productos y leer códigos | ✓ | ✓ | ✓ | ✓ |
 | Registrar, editar y eliminar productos y categorías | ✓ | ✓ | | |
@@ -152,7 +176,8 @@ usuario* recuerda únicamente el nombre de usuario, nunca la contraseña ni el t
 ### Qué protege la base de datos
 
 - **Acceso:** solo usuarios autenticados **y** registrados como activos en `public.usuarios`, cada uno
-  limitado por su nivel (Row Level Security en todas las tablas). Los visitantes anónimos no ven nada.
+  limitado por los permisos de su nivel (Row Level Security en todas las tablas). Los visitantes anónimos
+  no ven nada.
 - **Existencias:** la columna `cantidad` solo cambia con ventas, entradas, anulaciones, conteos o
   restauraciones; un `update` directo es rechazado. No hay existencias negativas ni ventas sin stock.
 - **Historial:** ventas, detalles y movimientos solo se crean desde las funciones SQL; los ingresos de
@@ -185,19 +210,29 @@ negocio; las cuentas de usuario no se tocan.
 ## Pruebas
 
 ```bash
-npm test            # validaciones, niveles, inactividad, URL y modo demo (33 pruebas)
-npm run test:db     # esquema SQL y los 4 niveles sobre PostgreSQL real en memoria (23 pruebas)
+npm test            # validaciones, permisos, inactividad, URL y modo demo (37 pruebas)
+npm run test:db     # esquema SQL, niveles y permisos editables sobre PostgreSQL en memoria (24 pruebas)
 ```
 
 `test:db` ejecuta `supabase/schema.sql` dos veces, simula los roles de Supabase y comprueba seguridad,
-restricciones, ventas, anulaciones, entradas, conteos y restauración de respaldos.
+restricciones, ventas, anulaciones, entradas, conteos, restauración de respaldos y que un permiso que la
+administradora quita o pone se respeta en la base de datos. `npm test` comprueba, entre otras cosas, que la
+matriz inicial de `src/lib/permisos.js` sea idéntica a la que carga `schema.sql`.
 
 ## Despliegue en Vercel
 
-1. Sube el proyecto a GitHub e impórtalo en Vercel (framework: **Vite**).
-2. Agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_AUTH_DOMAIN`. Si alguna está mal,
-   la app muestra el error en pantalla en lugar de guardar datos en el navegador.
-3. `vercel.json` ya redirige todas las rutas a `index.html`, así que recargar cualquier página funciona.
+Publicado en <https://britny-max.vercel.app>.
+
+1. Sube el proyecto a GitHub e impórtalo en Vercel (framework: **Vite**). No hace falta subir `dist`,
+   `logs` ni `node_modules`, y **nunca** el archivo `.env`.
+2. Antes de desplegar, agrega las variables `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (clave
+   *publishable*) y `VITE_AUTH_DOMAIN`. En **Key** va el nombre y en **Value** el valor. Si falta alguna, la
+   compilación se detiene con «Britny Max no se puede compilar: Faltan …» en lugar de publicar una app
+   sin base de datos. Las variables solo se aplican en un despliegue nuevo (*Redeploy*).
+3. `vercel.json` ya redirige todas las rutas a `index.html` (recargar cualquier página funciona) y agrega
+   los encabezados de seguridad.
+4. Cada cambio que se sube a GitHub se publica solo. Si el cambio toca la base de datos, ejecuta también
+   `supabase/schema.sql` en Supabase.
 
 La lectura con cámara requiere HTTPS (Vercel lo incluye) o `localhost`.
 
@@ -209,12 +244,13 @@ src/
   views/        Una vista por pantalla (login, inicio, productos, ventas, reportes…)
   stores/       Estado con Pinia (sesión, datos de la tienda, notificaciones)
   services/     Acceso a datos: localBackend (modo demo) y supabaseBackend
-  lib/          Validaciones, niveles (permisos), inactividad, URL seguras, formatos y exportación
+  lib/          Validaciones, niveles y permisos editables, inactividad, URL seguras, formatos y exportación
   composables/  useValidacion (errores junto a cada campo), useInactividad (cierre a los 5 min)
 supabase/
-  schema.sql    Tablas, restricciones, seguridad (RLS) y funciones transaccionales
+  schema.sql    Tablas (incluida permisos_rol), restricciones, seguridad (RLS) y funciones transaccionales
   tests/        Pruebas del esquema con PGlite
-tests/          Pruebas de validaciones, operaciones y configuración
+tests/          Pruebas de validaciones, operaciones, permisos y configuración
 scripts/
   verificar-supabase.mjs   Revisión del proyecto Supabase ya configurado
+documentos/     Trabajo de grado (Word y PDF) y figuras: capturas, arquitectura y modelo entidad-relación
 ```

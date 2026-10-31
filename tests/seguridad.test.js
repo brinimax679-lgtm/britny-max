@@ -1,7 +1,10 @@
 // Niveles de seguridad, cierre por inactividad y protección de las URL.
 import { test, before, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { ROLES, PERMISOS, puede, exigirPermiso, nombreRol } from '../src/lib/permisos.js'
+import { readFileSync } from 'node:fs'
+import {
+  ROLES, PERMISOS, puede, exigirPermiso, nombreRol, permisosPorDefecto, agruparPermisos, normalizarPermisos, PERMISOS_ASIGNABLES,
+} from '../src/lib/permisos.js'
 import { LIMITE_MS, MINUTOS_INACTIVIDAD, tiempoRestante, sesionVencida } from '../src/lib/inactividad.js'
 import { urlSinTokens, rutaInternaSegura, consultaConTokens } from '../src/lib/url-segura.js'
 import { validarUsuario } from '../src/lib/validaciones.js'
@@ -49,6 +52,34 @@ test('permisos desconocidos o sin nivel se niegan', () => {
 })
 
 // ── Inactividad ───────────────────────────────────────────────────────────
+
+test('permisos editables: el administrador asigna y quita, y se respeta', () => {
+  const asignados = agruparPermisos([...permisosPorDefecto(), { rol: 'cajero', permiso: 'finanzas.ver' }]
+    .filter((p) => !(p.rol === 'supervisor' && p.permiso === 'ventas.anular')))
+  assert.equal(puede('cajero', 'finanzas.ver', asignados), true, 'permiso agregado')
+  assert.equal(puede('supervisor', 'ventas.anular', asignados), false, 'permiso quitado')
+  assert.equal(puede('administrador', 'ventas.anular', asignados), true, 'el administrador no se limita')
+  assert.equal(puede('supervisor', 'usuarios.gestionar', { supervisor: ['usuarios.gestionar'] }), false, 'gestionar usuarios es solo del administrador')
+  assert.throws(() => exigirPermiso('supervisor', 'ventas.anular', asignados), /nivel de acceso \(Supervisor\)/)
+})
+
+test('permisos editables: requisitos y validación de la lista', () => {
+  const lista = normalizarPermisos([{ rol: 'cajero', permiso: 'finanzas.editar' }, { rol: 'cajero', permiso: 'finanzas.editar' }])
+  assert.deepEqual(lista, [{ rol: 'cajero', permiso: 'finanzas.ver' }, { rol: 'cajero', permiso: 'finanzas.editar' }], 'agrega el requisito y quita repetidos')
+  assert.throws(() => normalizarPermisos([{ rol: 'administrador', permiso: 'ventas.ver' }]), /supervisor, cajero y consulta/)
+  assert.throws(() => normalizarPermisos([{ rol: 'cajero', permiso: 'usuarios.gestionar' }]), /no se puede asignar/)
+  assert.throws(() => normalizarPermisos([{ rol: 'cajero', permiso: 'inventado' }]), /no se puede asignar/)
+  assert.ok(!PERMISOS_ASIGNABLES.includes('usuarios.gestionar'))
+})
+
+test('la matriz inicial del código es la misma que carga schema.sql', () => {
+  const sql = readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8')
+  const bloque = sql.slice(sql.indexOf('insert into public.permisos_rol'), sql.indexOf('where not exists (select 1 from public.permisos_rol)'))
+  const enSql = [...bloque.matchAll(/\('(supervisor|cajero|consulta)', '([a-z.]+)'\)/g)].map(([, rol, permiso]) => `${rol}:${permiso}`).sort()
+  const enCodigo = permisosPorDefecto().map((p) => `${p.rol}:${p.permiso}`).sort()
+  assert.deepEqual(enSql, enCodigo)
+  assert.deepEqual(normalizarPermisos(permisosPorDefecto()).length, enCodigo.length, 'la matriz inicial ya cumple los requisitos')
+})
 
 test('la sesión vence a los 5 minutos sin actividad', () => {
   assert.equal(MINUTOS_INACTIVIDAD, 5)
@@ -140,6 +171,20 @@ test('modo demo: consulta ve finanzas pero no modifica', async () => {
   const producto = datos.productos.find((p) => p.activo !== false && p.cantidad > 0)
   await assert.rejects(backend.registrarVenta({ items: [{ producto_id: producto.id, cantidad: 1 }] }), /nivel de acceso \(Consulta\)/)
   await assert.rejects(backend.restablecer(true), /nivel de acceso/)
+})
+
+test('modo demo: el administrador cambia los permisos y el cajero los recibe', async () => {
+  await backend.iniciarSesion('admin', 'britny2026')
+  const original = await backend.obtenerPermisos()
+  await backend.guardarPermisos(normalizarPermisos([...original, { rol: 'cajero', permiso: 'finanzas.ver' }]))
+  await backend.cerrarSesion()
+  await backend.iniciarSesion('cajero', 'cajero2026')
+  assert.ok((await backend.cargarTodo()).ingresos.length > 0, 'ahora el cajero ve los ingresos')
+  await assert.rejects(backend.guardarPermisos(original), /nivel de acceso \(Cajero\)/)
+  await backend.cerrarSesion()
+  await backend.iniciarSesion('admin', 'britny2026')
+  await backend.guardarPermisos(original)
+  await backend.cerrarSesion()
 })
 
 test('modo demo: sin sesión no se opera', async () => {
