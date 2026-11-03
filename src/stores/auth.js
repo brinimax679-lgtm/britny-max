@@ -6,7 +6,6 @@ import { agruparPermisos, exigirPermiso, nombreRol, normalizarPermisos, puede as
 import { MINUTOS_INACTIVIDAD, olvidarActividad, registrarActividad, sesionVencida } from '@/lib/inactividad'
 
 const CLAVE_AVISO = 'britnymax:aviso-login'
-const CLAVE_USUARIO = 'britnymax:usuario-recordado'
 
 /** Mensaje de un solo uso para mostrar en la pantalla de acceso. */
 function dejarAviso(mensaje) {
@@ -27,14 +26,6 @@ export function tomarAviso() {
   }
 }
 
-/** Solo se recuerda el nombre de usuario, nunca la contraseña ni el token. */
-export function usuarioRecordado() {
-  try {
-    return localStorage.getItem(CLAVE_USUARIO) ?? ''
-  } catch {
-    return ''
-  }
-}
 
 export const AVISO_INACTIVIDAD = `Tu sesión se cerró tras ${MINUTOS_INACTIVIDAD} minutos de inactividad. Ingresa de nuevo.`
 
@@ -91,18 +82,12 @@ export const useAuthStore = defineStore('auth', {
       return this.usuario
     },
 
-    async iniciarSesion(usuario, contrasena, recordarUsuario) {
+    async iniciarSesion(usuario, contrasena) {
       exigirValido(validarInicioSesion(usuario, contrasena))
       this.usuario = await backend.iniciarSesion(usuario.trim(), contrasena)
       this.verificado = true
       await this.cargarPermisos()
       registrarActividad()
-      try {
-        if (recordarUsuario) localStorage.setItem(CLAVE_USUARIO, usuario.trim())
-        else localStorage.removeItem(CLAVE_USUARIO)
-      } catch {
-        /* sin almacenamiento */
-      }
     },
 
     /** Limpia el estado local (también cuando la sesión vence en Supabase). */

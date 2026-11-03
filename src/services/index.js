@@ -2,11 +2,14 @@
 // credenciales válidas, o el navegador solo en modo demo (npm run dev:demo).
 // Con credenciales incorrectas la app muestra el error (ver App.vue).
 
-import local from './localBackend.js'
 import { usarSupabase } from './configuracion.js'
 
 export { errorConfiguracion } from './configuracion.js'
 
-const backend = usarSupabase ? (await import('./supabaseBackend.js')).default : local
+// Cada backend se carga solo cuando se usa: la versión publicada no trae el
+// código del modo demo (que es el único que guarda datos en localStorage).
+const backend = usarSupabase
+  ? (await import('./supabaseBackend.js')).default
+  : (await import('./localBackend.js')).default
 
 export default backend

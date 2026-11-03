@@ -21,7 +21,7 @@ const ui = useUiStore()
 const CLAVE_ULTIMO = 'britnymax:ultimo-respaldo'
 const leerUltimo = () => {
   try {
-    return localStorage.getItem(CLAVE_ULTIMO)
+    return sessionStorage.getItem(CLAVE_ULTIMO)
   } catch {
     return null
   }
@@ -39,7 +39,7 @@ function descargarRespaldo() {
   descargar(`respaldo-britny-max-${hoyISO()}.json`, JSON.stringify(respaldo, null, 2), 'application/json')
   ultimoRespaldo.value = respaldo.exportado_en
   try {
-    localStorage.setItem(CLAVE_ULTIMO, respaldo.exportado_en)
+    sessionStorage.setItem(CLAVE_ULTIMO, respaldo.exportado_en)
   } catch {
     /* sin almacenamiento disponible: solo se omite el recordatorio */
   }
@@ -165,7 +165,7 @@ async function restablecer(conDatos) {
         <h2 class="flex items-center gap-2 text-lg font-semibold text-slate-900"><DatabaseBackup class="size-5 text-blue-600" /> Respaldo de información</h2>
         <p class="mt-1 text-sm text-slate-500">Descarga una copia completa (productos, ventas, movimientos, ingresos y egresos) en un archivo JSON.</p>
         <p class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Último respaldo en este equipo:
+          Último respaldo en esta sesión:
           <strong class="text-slate-900">{{ ultimoRespaldo ? fechaHora(ultimoRespaldo) : 'nunca' }}</strong>
         </p>
         <div class="mt-5 flex flex-wrap gap-3">

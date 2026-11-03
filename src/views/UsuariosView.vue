@@ -179,8 +179,10 @@ async function guardarClave() {
           <tbody>
             <tr v-for="u in usuariosPagina" :key="u.id">
               <td class="pl-6 font-semibold text-slate-900">
-                {{ u.nombre }}
-                <span v-if="u.id === auth.usuario?.id" class="ml-1 text-xs font-normal text-slate-400">(tú)</span>
+                <span>
+                  {{ u.nombre }}
+                  <span v-if="u.id === auth.usuario?.id" class="ml-1 text-xs font-normal text-slate-400">(tú)</span>
+                </span>
               </td>
               <td class="font-mono text-xs text-slate-600">{{ modoLocal ? u.usuario : u.correo }}</td>
               <td>

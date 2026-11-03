@@ -98,3 +98,58 @@
     @apply shadow-none;
   }
 }
+
+/* Tablas en celular (menos de 768 px): cada fila se muestra como una tarjeta y
+   cada celda lleva el nombre de su columna (data-label, lo pone
+   src/lib/tablas-responsivas.js a partir del encabezado). Así no hay que
+   deslizar la tabla de lado para ver precios, cantidades o acciones. */
+@media (max-width: 767px) {
+  .tabla {
+    min-width: 0 !important;
+  }
+  .tabla thead {
+    display: none;
+  }
+  .tabla,
+  .tabla tbody,
+  .tabla tr,
+  .tabla td {
+    display: block;
+    width: 100%;
+  }
+  .tabla tbody tr {
+    border-top: 1px solid var(--color-slate-100);
+    padding: 0.75rem 1rem;
+  }
+  .tabla tbody tr:first-child {
+    border-top: 0;
+  }
+  .tabla tbody td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 0;
+    padding: 0.3rem 0 !important;
+    text-align: right;
+  }
+  .tabla tbody td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    max-width: 45%;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-slate-400);
+  }
+  .tabla tbody td:not([data-label])::before,
+  .tabla tbody td[data-label=""]::before {
+    content: none;
+  }
+  /* Celdas con varias líneas (nombre y código, por ejemplo) siguen a la derecha del rótulo. */
+  .tabla tbody td > * {
+    min-width: 0;
+  }
+}

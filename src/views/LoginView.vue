@@ -4,10 +4,9 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Lock, Eye, EyeOff, Package, ShoppingCart, ChartColumn, LoaderCircle, Info, TimerReset } from 'lucide-vue-next'
 import AppLogo from '@/components/AppLogo.vue'
-import { useAuthStore, tomarAviso, usuarioRecordado } from '@/stores/auth'
+import { useAuthStore, tomarAviso } from '@/stores/auth'
 import { tomarDestino } from '@/router'
 import backend from '@/services'
-import { USUARIOS_DEMO } from '@/services/seed'
 import { validarInicioSesion } from '@/lib/validaciones'
 import { nombreRol } from '@/lib/permisos'
 import { MINUTOS_INACTIVIDAD } from '@/lib/inactividad'
@@ -15,16 +14,18 @@ import { MINUTOS_INACTIVIDAD } from '@/lib/inactividad'
 const auth = useAuthStore()
 const router = useRouter()
 
-// Solo se recuerda el nombre de usuario; la sesión nunca queda guardada.
-const usuario = ref(usuarioRecordado())
+// Nada se guarda en el equipo: ni el usuario, ni la contraseña, ni la sesión.
+const usuario = ref('')
 const contrasena = ref('')
-const recordar = ref(Boolean(usuario.value))
 const ver = ref(false)
 const error = ref('')
 const errores = ref({})
 const enviando = ref(false)
 const aviso = ref(tomarAviso())
 const modoDemo = backend.modo === 'local'
+// Las cuentas de ejemplo solo existen en el modo demo: la versión publicada no las incluye.
+const cuentasDemo = ref([])
+if (modoDemo) import('@/services/seed').then((m) => (cuentasDemo.value = m.USUARIOS_DEMO))
 
 const beneficios = [
   { icono: Package, texto: 'Inventario' },
@@ -38,7 +39,7 @@ async function entrar() {
   if (Object.keys(errores.value).length) return
   enviando.value = true
   try {
-    await auth.iniciarSesion(usuario.value, contrasena.value, recordar.value)
+    await auth.iniciarSesion(usuario.value, contrasena.value)
     contrasena.value = ''
     router.replace(tomarDestino())
   } catch (e) {
@@ -143,13 +144,7 @@ function usarCuentaDemo(cuenta) {
               <p v-if="errores.contrasena" class="error-campo">{{ errores.contrasena }}</p>
             </div>
 
-            <div>
-              <label class="flex cursor-pointer items-center gap-3 text-slate-600 select-none">
-                <input v-model="recordar" type="checkbox" class="size-4 rounded border-slate-300 accent-blue-600" />
-                Recordar usuario
-              </label>
-              <p class="ayuda ml-7">La sesión se cierra sola tras {{ MINUTOS_INACTIVIDAD }} minutos sin actividad o al cerrar el navegador.</p>
-            </div>
+            <p class="ayuda">La sesión se cierra sola tras {{ MINUTOS_INACTIVIDAD }} minutos sin actividad o al cerrar el navegador.</p>
 
             <p v-if="error" class="rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600" role="alert">{{ error }}</p>
 
@@ -166,7 +161,7 @@ function usarCuentaDemo(cuenta) {
           <div v-if="modoDemo" class="mt-6 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-800">
             <p class="flex items-center gap-2"><Info class="size-4 shrink-0" /><strong>Modo demostración</strong> · una cuenta por nivel</p>
             <ul class="mt-3 grid gap-1.5">
-              <li v-for="c in USUARIOS_DEMO" :key="c.usuario">
+              <li v-for="c in cuentasDemo" :key="c.usuario">
                 <button
                   type="button"
                   class="flex w-full items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2 text-left hover:bg-white"

@@ -119,7 +119,7 @@ function exportar() {
             @keydown.enter="alPresionarEnter"
           />
         </div>
-        <div class="grid grid-cols-2 gap-3 lg:flex">
+        <div class="grid gap-3 sm:grid-cols-2 lg:flex">
           <select v-model="categoria" class="input py-3 lg:w-48" aria-label="Filtrar por categoría">
             <option value="">Todas las categorías</option>
             <option v-for="c in tienda.categorias" :key="c.id" :value="c.id">{{ c.nombre }}</option>

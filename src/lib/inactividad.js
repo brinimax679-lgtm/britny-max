@@ -1,7 +1,7 @@
 // Cierre automático de sesión por inactividad (RNF02).
 // La última actividad se guarda con hora real (no con temporizadores), así el
 // cierre también ocurre si el computador se suspende o la pestaña queda oculta.
-// Se comparte entre pestañas: trabajar en una mantiene viva la sesión en todas.
+// Vive en sessionStorage: nada queda guardado en el equipo al cerrar el navegador.
 
 export const MINUTOS_INACTIVIDAD = 5
 export const SEGUNDOS_AVISO = 30
@@ -11,7 +11,7 @@ const CLAVE = 'britnymax:ultima-actividad'
 
 export function registrarActividad(ahora = Date.now()) {
   try {
-    localStorage.setItem(CLAVE, String(ahora))
+    sessionStorage.setItem(CLAVE, String(ahora))
   } catch {
     /* sin almacenamiento: el temporizador de la pestaña sigue funcionando */
   }
@@ -19,7 +19,7 @@ export function registrarActividad(ahora = Date.now()) {
 
 export function ultimaActividad() {
   try {
-    return Number(localStorage.getItem(CLAVE)) || 0
+    return Number(sessionStorage.getItem(CLAVE)) || 0
   } catch {
     return 0
   }
@@ -27,7 +27,7 @@ export function ultimaActividad() {
 
 export function olvidarActividad() {
   try {
-    localStorage.removeItem(CLAVE)
+    sessionStorage.removeItem(CLAVE)
   } catch {
     /* nada que limpiar */
   }

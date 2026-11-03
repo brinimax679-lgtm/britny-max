@@ -8,6 +8,7 @@ import router from './router'
 import backend from './services'
 import { useAuthStore } from './stores/auth'
 import './style.css'
+import { iniciarTablasResponsivas } from './lib/tablas-responsivas.js'
 
 const app = createApp(App).use(createPinia()).use(router)
 
@@ -20,3 +21,4 @@ backend.alCerrarSesion?.(() => {
 })
 
 app.mount('#app')
+iniciarTablasResponsivas()

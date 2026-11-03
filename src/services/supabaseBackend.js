@@ -7,10 +7,11 @@ import { configuracion } from './configuracion.js'
 
 // Los tokens de sesión viven solo en sessionStorage: desaparecen al cerrar el
 // navegador y nunca quedan guardados de forma permanente en el equipo.
-// Se borran también los que pudieran quedar de versiones anteriores.
+// La versión publicada no usa localStorage: se borra lo que hayan dejado
+// versiones anteriores o el modo demo (tokens, usuario recordado, datos de ejemplo).
 try {
   for (const clave of Object.keys(localStorage)) {
-    if (clave.startsWith('sb-') || clave === 'britnymax:recordar') localStorage.removeItem(clave)
+    if (clave.startsWith('sb-') || clave.startsWith('britnymax:')) localStorage.removeItem(clave)
   }
 } catch {
   /* sin almacenamiento persistente */
