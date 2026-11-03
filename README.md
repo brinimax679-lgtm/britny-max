@@ -13,7 +13,7 @@ Ingresos y Egresos en el Establecimiento Comercial Minorista Britny Max".
 
 | Requerimiento | Dónde está en la aplicación |
 |---|---|
-| **RF01** Autenticación de usuario | Pantalla de inicio de sesión (usuario y contraseña, "Recordar sesión"). Todas las rutas exigen sesión. |
+| **RF01** Autenticación de usuario | Pantalla de inicio de sesión (usuario y contraseña). Todas las rutas exigen sesión. |
 | **RF02** Registro de productos | Productos → *Registrar producto*: nombre, código de barras, categoría, precio de compra, precio de venta, cantidad inicial y stock mínimo. |
 | **RF03** Consulta y búsqueda | Productos: búsqueda por nombre, categoría o código (sin importar tildes) y filtros por categoría y estado. |
 | **RF04** Edición y eliminación | Productos → lápiz / papelera. La eliminación retira el producto del catálogo y conserva su historial. |
@@ -24,7 +24,7 @@ Ingresos y Egresos en el Establecimiento Comercial Minorista Britny Max".
 | **RNF01** Tiempo de respuesta | Vistas cargadas bajo demanda y datos en memoria tras el primer ingreso. |
 | **RNF02** Seguridad | 4 niveles de acceso con **permisos que la administradora pone y quita** desde *Usuarios y niveles*, aplicados en la app y en la base de datos; cierre por 5 minutos de inactividad, URL sin tokens ni identificadores, Row Level Security en todas las tablas y encabezados de seguridad. Ver [Seguridad](#seguridad). |
 | **RNF03** Facilidad de uso | Interfaz basada en los mockups de Figma, mensajes claros y confirmaciones. |
-| **RNF04 / RNF05** Disponibilidad y compatibilidad | Aplicación web adaptable a computador y celular (Chrome, Edge, Firefox). |
+| **RNF04 / RNF05** Disponibilidad y compatibilidad | Aplicación web adaptable a computador, tablet y celular (Chrome, Edge, Firefox); en el celular las tablas se muestran como tarjetas y las listas se paginan de 10 en 10. |
 | **RNF07** Integridad | Validaciones idénticas en la interfaz (`src/lib/validaciones.js`) y en PostgreSQL; ventas, entradas, anulaciones y ajustes son transaccionales; las existencias no se pueden editar a mano. |
 | **RNF08** Escalabilidad | PostgreSQL en Supabase con índices por fecha y lectura paginada. |
 | **RNF09** Respaldo | *Respaldo y cuenta*: descarga y restauración de copias en JSON. |
@@ -156,9 +156,15 @@ pantalla que no le corresponde, vuelve al inicio con un aviso. La administradora
 
 La sesión se cierra sola tras **5 minutos sin actividad** (teclado, mouse, toque o lector de código).
 30 segundos antes aparece un aviso con cuenta regresiva y el botón *Seguir conectado*. Se calcula con la
-hora real, así que también se cierra si el computador se suspendió; la actividad en una pestaña mantiene
-viva la sesión en las demás. La sesión solo se guarda mientras el navegador esté abierto; *Recordar
-usuario* recuerda únicamente el nombre de usuario, nunca la contraseña ni el token.
+hora real, así que también se cierra si el computador se suspendió.
+
+### Nada queda guardado en el equipo
+
+La versión publicada **no usa `localStorage`**: la sesión, la hora de la última actividad y la fecha del
+último respaldo viven en `sessionStorage` y se borran al cerrar el navegador. No se recuerda el usuario
+ni la contraseña. Al abrir la app se eliminan las claves `britnymax:*` y `sb-*` que hubieran dejado
+versiones anteriores. El código del modo demo (el único que guarda datos en `localStorage`) se carga
+aparte y la versión publicada nunca lo descarga.
 
 ### Protección de las URL y los tokens
 
